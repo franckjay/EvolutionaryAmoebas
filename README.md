@@ -1,6 +1,6 @@
 ﻿# EvolutionaryAmoebas
 
-Blog post associated with this article:  
+Blog post associated with this article: https://www.linkedin.com/pulse/evolutionary-amoebas-playing-space-invaders-deep-learning-franck/?published=t
 
 Evolutionary Algorithm learning weights in order to play Space Invaders with OpenAI's Gym environment.
 
