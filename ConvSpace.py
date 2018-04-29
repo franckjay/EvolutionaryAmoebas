@@ -53,23 +53,17 @@ def playGame(env,model,nActions,nStates):
     total_reward=0.0
     done=False
     while not done:
-        
+        #This should be fairly self-explanatory.
         action = model.predict(state)
-
-        #comment this out if you're not doing CartPole or something
         action = np.argmax(action)
 
         new_state, reward, done, _ = env.step(action)
         total_reward += reward
         if done:
             break
-        #print (state)
         state = new_state
-        #print (state)
         state=preprocess(state)
-
         state = np.expand_dims(state,axis=0)
-        #print ("New State: ",state)
     return total_reward
 
 
@@ -77,16 +71,17 @@ def buildConvModel(nActions,nStates,warmModel=False):
     inLayer=Input(shape=(84,84,1))
     conv=Conv2D(40,(2,2))(inLayer)
     conv=Conv2D(20,(4,4))(conv)
-    #conv=MaxPooling2D(pool_size(4,4))(conv)
+    conv=MaxPooling2D(pool_size(4,4))(conv)
+    
     flat=Flatten()(conv)
     dense=Dense(48,activation='relu')(flat)
     dense=Dense(24,activation='relu')(dense)
     dense=Dense(12,activation='relu')(dense)
     outLayer=Dense(nActions , activation='softmax')(dense)
     model=Model(inLayer, outLayer)
+    #If you already have a model, use it.
     if warmModel != False:
         model.load_weights(warmModel)
-    #return Model(inLayer, outLayer)
     return model
 
 
@@ -97,10 +92,8 @@ def getAmoebaDNA(model,bad_layers):
     goodLayer=0
     #Grab first model in army as a baseline weight sample
     for l in range(len(model.layers)):
-#        print model.layers[l]
+
         if l not in bad_layers:
-            #print bad_layers
-#            print l,model.layers[l]
             weights=model.layers[l].get_weights()[0]#Grab weights for all layers
             bias=model.layers[l].get_weights()[1]
             DNA.append(weights) 
@@ -122,8 +115,6 @@ def jitterDNA(models,sigma,nAmoebas,bad_layers):
             else:
                 N = np.random.randn(nAmoebas, shape[0],shape[1])*sigma
             B = np.random.randn(nAmoebas, bias_shape[0])*sigma
-    
-            #add to containers
             noise.append(N)
             bias_noise.append(B)
     return noise,bias_noise
@@ -137,8 +128,6 @@ def addJitter(models,noise,bias_noise,baseDNA,baseBias,jitterBias,good_layers):
                     new_bias = baseBias[good_layers[l]] + bias_noise[good_layers[l]][w]
                 else:
                     new_bias = baseBias[good_layers[l]]
-
-                #set the weights on the current worker
                 models[w].layers[l].set_weights((newDNA, new_bias))
     return models
 
@@ -147,32 +136,24 @@ def breedingGrounds(models,noise,bias_noise,A,baseDNA,baseBias,scale,jitterBias,
         if l in good_layers:
             weight_dot = noise[good_layers[l]]
             bias_dot = bias_noise[good_layers[l]]
-            #print np.shape(weight_dot),np.shape(weight_dot.transpose(1, 2, 3, 4, 0)),A.shape
+            #If your weights are in a convolutional layer, they have a large shape!
             if len(weight_dot.shape)>4:
                 weight_dot = np.dot(weight_dot.transpose(1,2,3,4,0), A)
             else:
                 weight_dot = np.dot(weight_dot.transpose(1,2,0), A)
-                
-#            weight_dot = np.dot(weight_dot, A)
-#            weight_dot = np.dot(weight_dot.T, A)
-#            weight_dot = np.dot(weight_dot.transpose(0,1,2,3), A)
-#            weight_dot = np.dot(weight_dot.transpose(1,2,3,0), A)
-            #bias_dot = np.dot(bias_dot.transpose(1,2,0), A)
-            #print np.shape(weight_dot)
+              
             baseDNA[good_layers[l]] += scale * weight_dot
             if jitterBias:
                 baseBias[good_layers[l]] +=  scale* bias_dot
     return baseDNA,baseBias       
 
 warmModel=False#3Layer Version.
-bad_layers=[0,3]#input layer, Flatten
+bad_layers=[0,3,4]#Input layer,MaxPool,Flatten
 amoebaArmy = [buildConvModel(nActions,nStates,warmModel) for i in range(nAmoebas)]
 
 
 baseDNA,baseBias,good_layers=getAmoebaDNA(amoebaArmy[0],bad_layers)#Grab the first model as a benchmark
 noise,bias_noise=jitterDNA(amoebaArmy,sigma,nAmoebas,bad_layers)
-
-
 
 for i in range(nEpochs):
     rewards=np.zeros(nAmoebas)
@@ -186,7 +167,6 @@ for i in range(nEpochs):
     A=((rewards - np.mean(rewards)) / (np.std(rewards)))
     if i%10==0: 
         print (i,"scores",np.mean(rewards),np.std(rewards))
-        #print (rewards)
     scale=LR/(sigma*nAmoebas)
     baseDNA,baseBias=breedingGrounds(amoebaArmy,noise,bias_noise,A,baseDNA,baseBias,scale,jitterBias,good_layers)
     
